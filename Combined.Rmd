@@ -1,0 +1,644 @@
+---
+title: "Combined_Codes"
+author: "Zonghong Yu, Yicheng Guo, Yilin Yang, Huiting Song, Shiyu Wang"
+date: "2022-12-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+df <- read.csv("genres_v2.csv",stringsAsFactors=FALSE)
+head(df)
+    
+```
+```{r}
+names(df)
+```
+
+```{r}
+df = subset(df, select = -c(uri, id, track_href, Unnamed..0, duration_ms, analysis_url, title, type) ) 
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+df_dup = df[duplicated(df$song_name), ]
+head(df_dup)
+```
+```{r}
+dup <- df[df$song_name == "Venom",]
+```
+
+```{r}
+df = df[!duplicated(df$song_name), ]
+```
+```{r}
+head(df)
+```
+
+```{r}
+sum(duplicated(df$song_name))
+```
+
+
+
+```{r}
+library(tidyverse) #for data cleaning and manipulation
+#library(rccdates) #for converting date variables
+library(wordcloud) #for creating word cloud visualizations
+library(ggplot2) #for data visualizations
+library(tm) #used for text mining 
+library(RColorBrewer) #color schemes for plots
+library(SnowballC) #for text stemming
+library(corrplot) #for correlation matrix visualization
+```
+
+
+```{r}
+spotify <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv')
+```
+
+```{r}
+write.csv(spotify, "spotify.csv")
+```
+
+```{r}
+#removing columns 1,5,6,8,& 9
+spotify <- spotify[,-c(1,5,6,8,9)]
+#separating track_album_release_date
+spotify <- spotify%>%separate(track_album_release_date,c("release_year", "release_month", "release_day"), sep="-")
+
+#deleting release_month and release_day
+spotify <- spotify[,-c(5,6)]
+
+#changing year to a factor
+spotify$release_year <- as.factor(spotify$release_year)
+
+#changing genre to a factor
+spotify$playlist_genre <- as.factor(spotify$playlist_genre)
+
+#changing subgenre to a factor
+spotify$playlist_subgenre <- as.factor(spotify$playlist_subgenre)
+
+#simplifying variable names
+names(spotify) <- c("name", "artist", "popularity", "year", "genre", "subgenre", "danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumantalness", "liveness", "valence", "tempo", "duration")
+```
+```{r}
+
+spotify = na.omit(spotify)
+sum(is.na(spotify))
+write.csv(spotify, "spotify_cleaned.csv")
+```
+```{r}
+spotify %>%
+  select(popularity, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumantalness, liveness, valence, tempo, duration) %>%
+  cor() %>%
+  corrplot(method = 'color', order = 'hclust',  type = 'upper', 
+           diag = TRUE, main = 'Correlation Matrix for Popularity and Audio Features',
+           mar = c(2,2,2,2))
+```
+```{r}
+title2 <- Corpus(VectorSource(spotify$name))
+# Convert the text to lower case
+title2 <- tm_map(title2, content_transformer(tolower))
+# Remove numbers
+title2 <- tm_map(title2, removeNumbers)
+# Remove english common stopwords
+title2 <- tm_map(title2, removeWords, stopwords("english"))
+# Remove punctuations
+title2 <- tm_map(title2, removePunctuation)
+# Remove other data specific stop words
+title2 <- tm_map(title2, removeWords, c("feat","edit", "version", "radio", "remix", "remastered", "mix","like", "original", "remaster"))
+title2_dtm <- DocumentTermMatrix(title2)
+title2_freq <- colSums(as.matrix(title2_dtm))
+freq2 <- sort(colSums(as.matrix(title2_dtm)), decreasing=TRUE) 
+title2_wf <- data.frame(word=names(title2_freq), freq=title2_freq)
+
+#create word cloud
+set.seed(1234)
+wordcloud(words = title2_wf$word, freq = title2_wf$freq, min.freq =1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+```
+```{r}
+ggplot(data = spotify, aes(x = subgenre, fill = genre)) +
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+spotify %>% group_by(subgenre) %>% 
+  summarize(average_popularity=mean(popularity)) %>% 
+  ggplot(aes(x=reorder(subgenre,-average_popularity), y=average_popularity))+
+  geom_col(fill = "#F4EDCA", color = "#C4961A")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Average Song Popularity by Subgenre")+
+  labs(y="Average Song Popularity", x = "Subgenre")
+```
+```{r}
+spotify %>% group_by(genre) %>% 
+  summarize(average_popularity=mean(popularity)) %>% 
+  ggplot(aes(x=reorder(genre,-average_popularity), y=average_popularity))+
+  geom_col(fill = "#FFDB6D", color = "#C4961A")+
+  theme(axis.text.x = element_text(angle = 45))+
+  ggtitle("Average Song Popularity by Genre")+
+  labs(y="Average Song Popularity", x = "Genre")
+```
+
+```{r}
+# Compute the analysis of variance
+res.aov <- aov(popularity ~ genre, data = spotify)
+# Tukey's multiple comparison of means
+TukeyHSD(res.aov)
+```
+
+
+```{r}
+spotify$popular_level<-rep(0, nrow(spotify))
+
+spotify <- within(spotify, {   
+  
+  popular_level[popularity>=66] <- "very_popular"
+  popular_level[popularity>=33 & popularity< 66] <- "Moderate"
+  popular_level[popularity <= 33] <- "not_popular"
+} )
+```
+
+
+```{r}
+popular_table <- spotify %>% 
+  group_by(artist) %>% 
+  
+  summarize(total_popular=sum(popular_level == "very_popular"),
+            total_not_popular=sum(popular_level == "not_popular"),
+            moderate = sum(popular_level == "Moderate"),
+            popularity_ratio=ifelse(
+              total_not_popular>0,total_popular/total_not_popular,total_popular)) %>%
+  
+  top_n(10,total_popular) %>% 
+  select(artist, total_popular,moderate,total_not_popular, popularity_ratio) %>% 
+  arrange(desc(total_popular))
+  
+popular_table
+knitr::kable(popular_table, align = "lccc", format="markdown",col.names = c('Artist', 'Popular','Moderate', ' Not popular', 'popularity ratio'), caption="Top 10 Artists by Number of Popular Songs")
+```
+
+
+```{r}
+ggplot(popular_table,
+       aes(x=reorder(artist, -total_popular), y=total_popular)) + geom_bar(stat = "identity",fill = "#56B4E9", color = "#0072B2")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Top 10 arists with most popular songs")+
+  labs(y="Number of Popular songs", x = "Arists")
+```
+```{r}
+ratio_table <- spotify %>% 
+  group_by(artist) %>% 
+  
+  summarize(total_popular=sum(popular_level == "very_popular"),
+            total_not_popular=sum(popular_level == "not_popular"),
+            moderate = sum(popular_level == "Moderate"),
+            popularity_ratio=ifelse(
+              total_not_popular>0,total_popular/total_not_popular,total_popular)) %>%
+  
+  top_n(10,popularity_ratio) %>% 
+  select(artist, total_popular,moderate,total_not_popular, popularity_ratio) %>% 
+  arrange(desc(popularity_ratio))
+  
+
+knitr::kable(ratio_table, align = "lccc", format="markdown",col.names = c('Artist', 'Popular','Moderate', ' Not popular', 'Popular ratio'), caption="Top 10 Artists by Popular Ratio")
+```
+
+```{r}
+ggplot(ratio_table,
+       aes(x=reorder(artist, -popularity_ratio), y=popularity_ratio)) + geom_bar(stat = "identity",fill = "#56B4E9", color = "#0072B2")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Top 10 arists with highest popular ratio")+
+  labs(y="Number of Popular songs", x = "Arists")
+```
+
+```{r}
+# parse out the keywords from the pipe-delimited string and determine keyword frequency
+parse_key <- data.frame(table(unlist(strsplit(as.character(spotify$artist), split = "|",
+                                              fixed = TRUE))))
+# list the 20 most frequent keywords
+head(parse_key[order(parse_key$Freq, decreasing = TRUE), ], 10)
+```
+
+
+
+```{r}
+# Packages
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(boot)
+```
+
+Write your Null and Alternative Hypothesis.
+```{r}
+df <- read.csv("spotify_cleaned.csv",stringsAsFactors=FALSE)
+head(df)
+
+# My Data Science Question: 
+# Is the population mean of popularity of rock music greater than that of rap music?
+
+
+# Hypothesis:
+# H0: The mean popularity of rock music is the same as the mean popularity of rap music
+# Ha: The mean popularity of rock music is higher than the mean popularity of rap music
+```
+
+Do a t-test (if your Data science question is about population averages. If your question is about comparing proportions then use a Z-test), and write your conclusion at 5% significance level.
+```{r}
+# Since my question is to compare average, therefore, I use t-test for my hypothesis:
+
+dt_pop <- df$popularity[df$genre == "rock"]
+
+
+ur_pop <- df$popularity[df$genre == "rap"]
+
+
+
+
+# Since the hypothesis is to compare energy of KC and AG,  alternative is higher, use greater in t-test.
+t.test(ur_pop, dt_pop, alt="greater",conf.level = 0.95)  #at 5% significance level.
+```
+```{r}
+# Conclusion:
+# Based on the t-test, we can see that the p-value is less than 0.05 which is the 5% significance level.
+# Therefore, we reject the Null hypothesis at this significant level.
+# We can conclude that we have enough evidence to prove that the mean energy of Kelly Clarkson is not the same as the mean energy of Ariana Grande. In fact, we can say that the mean energy of Kelly Clarkson is larger than the mean energy of Ariana Grande
+
+# this conclusion also aligns with my EDA analysis, that the mean energy of Kelly Clarkson is larger than the mean energy of Ariana Grande
+```
+
+
+Do a bootstrap test(here you will be using bootstrap sampling and 95% bootstrap percentile interval) to answer the same question and write your conclusion at 5% significance level.
+
+```{r}
+
+# Use bootstrap
+
+set.seed(2)
+difference <- rep(NA,10000)
+boot_ratio <- rep(NA, 10000)
+
+for (j in 1:10000){
+  boot_dt <- mean(sample(dt_pop, length(dt_pop), replace = T))
+  boot_ur <- mean(sample(ur_pop, length(ur_pop), replace = T))
+  difference[j] <- boot_ur - boot_dt   #the difference
+  boot_ratio[j] <- boot_ur / boot_dt # The ratio
+}
+
+mean(difference) #bootstrap mean difference
+mean(boot_ratio) #bootstrap mean rAtio
+```
+```{r}
+hist(difference, main = "Bootstrap distribution of difference in means for popularities of two genres",col = '#FFFF99')
+abline(v = mean(ur_pop) - mean(dt_pop), col = "blue", lty = 2)
+```
+```{r}
+qqnorm(difference)
+qqline(difference)
+```
+```{r}
+# 95% CI
+CI <- quantile(difference, c(0.025, 0.975))
+CI
+```
+```{r}
+hist(difference, main = "Bootstrap of difference in means for popularities of two genres",col = '#FFFF99')
+abline(v = mean(ur_pop) - mean(dt_pop), col = "blue", lty = 2)
+abline(v = CI, col = 4, lwd = 2)
+```
+
+Import the cleaned dataset
+```{r}
+df <- read.csv("spotify_cleaned.csv")
+head(df,5)
+```
+
+From the daily observations, some music genres do dominate the front rank of the listener's music charts, such as pop music. There are many reasons for this phenomenon, such as the fact that these pop music are sung by favorite singers. Hence, with this complex relationship, whether the popularity of music is related to the genre of music itself needs to be studied. In the previous hypothesis test, the relationship between the average populative of rock music and of rap music has been addressed. However, the general relationship between the genres and the popularity cannot be explained by a test between two specific genres of musics.
+
+In the second hypothsis test, whether the popularity is related to the genre will be examinated. Before implementing the test method, categorizing the popularity into three different groups - high,medium,low -  will be helpful in understanding the relationship. Based on the 0 to 100 popularity score rules on spotify, three categories can be presented as: 
+ - High: popularity >= 66
+ - medium: 33 > popularity > 66
+ - low: popularity <= 33
+
+The two-way table is generated to show the frequency of songs in the group of genre and popularity. 
+```{r}
+df$popularity <- as.factor(ifelse(df$popularity>=66, 'High',
+                     ifelse(df$popularity<66 & df$popularity>33, 'Medium','Low')))
+```
+
+```{r}
+library(knitr)
+t1 = table(df$popularity,df$genre)
+kable(t1,align = "lccrr")
+```
+
+In statistics, Chi-square test is commonly used in testing the independence of two variables. If two variables are independent, it means there is no relationship between two factors. Based on the question of whether the popularity is related to the genre, the null hypothesis (H0) can be set as the popularity and the genre is independent, and then correspondingly, the alternative hypothesis (Ha) will be the popularity and the genre is dependent.In this case, the specific hypotheses are:
+
+- H0: There is no relationship between the popularity and the genre of musics.
+- Ha: There is relationship between the popularity and the genre of musics.
+```{r}
+t2 <- chisq.test(t1)
+t2
+```
+```{r}
+chisq.test(t1)$expected
+```
+
+From the output, the p-value is less than the significance level of 5%, which means the rejection of null hypothesis. In this context, rejecting the null hypothesis for the Chi-square test of independence means there is a significant relationship between the popularity and the genre of musics. 
+
+
+Load the required dataset
+```{r}
+artists <- read.csv("./Tracks_Artists.csv")
+head(artists)
+```
+```{r}
+summary(artists$album_release_year)
+```
+
+```{r}
+library(ggplot2)
+ggplot(artists, aes(x=album_release_year)) +
+  geom_bar()+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)+
+  ylim(0,5000)+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=30,hjust=1))+
+  labs(title="Count of Songs in Each Year",
+        x ="Year", y = "Counts")
+```
+```{r}
+artists$year_range <- ifelse(artists$album_release_year < 2011, "1999-2010","2011-2022")
+head(artists)
+```
+```{r}
+library(ggplot2)
+ggplot(artists, aes(x=year_range)) +
+  geom_bar()+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)+
+  ylim(0,5000)+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=30,hjust=1))+
+  labs(title="Count of Songs in Each Range of Year",
+        x ="Year", y = "Counts")
+```
+
+## Hypothesis 2:
+Null Hypothesis: I will make null hypothesis as the average Valence of songs in 1999-2010 is higher than songs in 2011-2011. 
+
+Alternative Hypothesis: the average Valence of songs in 1999-2010 is lower than songs in 2011-2011. 
+
+```{r}
+# group the dataset by Yearrange
+Year2010 <- subset(artists, artists$year_range == "1999-2010",select = c("Valence"))
+Year2022 <- subset(artists, artists$year_range == "2011-2022",select = c("Valence") )
+# t.test
+t.test(Year2010,Year2022,alternative = "less")
+```
+
+
+```{r}
+set.seed(1)
+n1 = length(Year2010)
+n2 = length(Year2022)
+N <- 10000
+diff_mean <- numeric(N) 
+
+for (i in 1:N)
+{
+Year2010.sample <- sample(Year2010$Valence, n1, replace = TRUE) 
+Year2022.sample <- sample(Year2022$Valence, n2, replace = TRUE)
+diff_mean[i] <- mean(Year2010.sample) - mean(Year2022.sample)
+}
+
+mean(diff_mean)
+```
+```{r}
+quantile(diff_mean, c(.025, .975))
+```
+
+```{r}
+mydiff = function(mydf){
+  index1 = artists$year_range == "1999-2010"
+  index2 = artists$year_range == "2011-2022"
+  return(mean(artists$Valence[index1]) - mean(artists$Valence[index2]))
+}
+
+mydiff(genre.clean) #actual mean difference from the original sample
+```
+
+```{r}
+hist(diff_mean,breaks=50,main = "Bootstrap distribution of the difference in means",col = 'light pink')
+abline(v = mean(Year2010.sample) - mean(Year2022.sample), col = "red", lty = 2)
+```
+
+
+```{r}
+data <-  read.csv("spotify_cleaned.csv")
+```
+
+Data Science Questions: Are the variables contributing for predicting "popularity" of the songs is same for different genres?
+
+
+Create a new variable named "Valence_C".
+
+```{r}
+data$Valence_C <- rep(0,nrow(data))
+
+data1 <- within(data, {
+  Valence_C[valence>=0.8 & valence<=1] <- "more positive"
+  Valence_C[valence>=0.5 & valence<0.8] <- "moderate"
+  Valence_C[valence<=0.499] <- "more negative"
+})
+head(data1)
+```
+
+Fit multiple linear regression models separately for different genres. 
+
+```{r}
+set.seed(12)
+library(caret)
+library(tidyverse)
+```
+
+```{r}
+pop <- data1[data1$genre=="pop",]
+edm <- data1[data1$genre=="edm",]
+```
+
+```{r}
+names(pop)
+```
+
+```{r}
+training_samples <- pop$popularity %>%
+  createDataPartition(p=0.8, list=FALSE)
+
+train <- pop[training_samples, ]
+test <- pop[-training_samples, ]
+dim(train)
+```
+
+Fit the FULL linear regression model.
+```{r}
+fit1 <- lm(popularity ~ danceability + energy + loudness + speechiness + acousticness + instrumantalness + liveness + valence + tempo +Valence_C, data = train)
+summary(fit1)
+```
+
+Remove insignificant variables.
+
+```{r}
+fit2 <- lm(popularity ~ danceability + energy + loudness + speechiness + instrumantalness + Valence_C, data = train)
+summary(fit2)
+```
+
+Check interactions.
+```{r}
+fit12 <- lm(popularity ~ (danceability+energy+loudness+speechiness+instrumantalness)^2, data=train)
+summary(fit12)
+```
+
+```{r}
+fit3 <- lm(popularity~danceability+energy+loudness+speechiness+instrumantalness+energy*loudness+loudness*instrumantalness,data=train)
+summary(fit3)
+```
+
+
+Make Predictions
+```{r}
+pred1 <- fit1 %>% predict(test)
+p1 = data.frame(
+  RMSE=RMSE(pred1,test$popularity),
+  R2=R2(pred1,test$popularity)
+)
+
+pred2 <- fit2 %>% predict(test)
+p2 <- data.frame(
+  RMSE=RMSE(pred2,test$popularity),
+  R2=R2(pred2,test$popularity)
+)
+
+pred3 <- fit3 %>% predict(test)
+p3 <- data.frame(
+  RMSE=RMSE(pred3,test$popularity),
+  R2=R2(pred3,test$popularity)
+)
+```
+
+```{r}
+summary(fit1)$fstatistic[1]
+```
+
+```{r}
+summary(fit1)$adj.r.squared
+```
+
+```{r}
+summary(fit1)$sigma #RSE
+```
+
+
+```{r}
+all=rbind(p1,p2,p3)
+all=cbind(all,c(summary(fit1)$fstatistic[1],summary(fit2)$fstatistic[1],summary(fit3)$fstatistic[1]))
+all=cbind(all,c(summary(fit1)$adj.r.squared,summary(fit2)$adj.r.squared,summary(fit3)$adj.r.squared))
+all=cbind(all,c(summary(fit1)$sigma,summary(fit2)$sigma,summary(fit3)$sigma))
+
+all=cbind(all,c("fit1","fit2","fit3"))
+colnames(all)[c(3,4,5,6)]<-c("F stat","Adj R 2","RSE","models")
+all
+```
+
+It turns out that fit3 is the best model.
+
+Next we check the predictors for genres "EDM" and compared with "Pop".
+
+```{r}
+training_samples <- edm$popularity %>% 
+  createDataPartition(p=0.8,list = FALSE)
+
+train <- edm[training_samples,]
+test <- edm[-training_samples,]
+dim(train)
+```
+
+```{r}
+names(train)
+```
+
+Fit FULL linear regression model for EDM.
+```{r}
+fit11 <- lm(popularity ~ danceability+energy+loudness+speechiness+acousticness+instrumantalness+liveness+valence+tempo+Valence_C, data = train)
+summary(fit11)
+```
+
+Remove insignificant variables.
+
+```{r}
+fit22 <- lm(popularity ~ energy+loudness+acousticness+instrumantalness+tempo+Valence_C,data=train)
+summary(fit22)
+```
+
+Check interactions.
+
+```{r}
+fit12 <- lm(popularity~(energy+loudness+acousticness+instrumantalness+tempo)^2,data = train)
+summary(fit12)
+```
+
+
+```{r}
+fit33 <- lm(popularity~energy+loudness+acousticness+instrumantalness+tempo+energy*instrumantalness+energy*tempo+loudness*acousticness+loudness*instrumantalness+loudness*tempo+acousticness*tempo,data = train)
+summary(fit33)
+```
+
+Make predictions
+
+```{r}
+pred11 <- fit11 %>% predict(test)
+p11=data.frame(
+  RMSE=RMSE(pred11,test$popularity),
+  R2=R2(pred11,test$popularity)
+)
+
+pred22 <- fit22 %>% predict(test)
+p22=data.frame(
+  RMSE=RMSE(pred22,test$popularity),
+  R2=R2(pred22,test$popularity)
+)
+
+pred33 <- fit33 %>% predict(test)
+p33=data.frame(
+  RMSE=RMSE(pred33,test$popularity),
+  R2=R2(pred33,test$popularity)
+)
+```
+
+```{r}
+all2=rbind(p11,p22,p33)
+all2=cbind(all2,c(summary(fit11)$fstatistic[1],summary(fit22)$fstatistic[1],summary(fit33)$fstatistic[1]))
+all2=cbind(all2,c(summary(fit11)$adj.r.squared,summary(fit22)$adj.r.squared,summary(fit33)$adj.r.squared))
+all2=cbind(all2,c(summary(fit11)$sigma,summary(fit22)$sigma,summary(fit33)$sigma))
+
+all2=cbind(all2,c("fit11","fit22","fit33"))
+colnames(all2)[c(3,4,5,6)] <- c("F stat","Adj R 2","RSE","models")
+all2
+```
+
+
+It turns out that fit33j is the best model.
+

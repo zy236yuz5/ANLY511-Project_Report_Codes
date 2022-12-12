@@ -1,0 +1,202 @@
+---
+title: "Linear Regression"
+output: html_document
+date: "2022-12-06"
+---
+
+```{r}
+data <-  read.csv("spotify_cleaned.csv")
+```
+
+Data Science Questions: Are the variables contributing for predicting "popularity" of the songs is same for different genres?
+
+
+Create a new variable named "Valence_C".
+
+```{r}
+data$Valence_C <- rep(0,nrow(data))
+
+data1 <- within(data, {
+  Valence_C[valence>=0.8 & valence<=1] <- "more positive"
+  Valence_C[valence>=0.5 & valence<0.8] <- "moderate"
+  Valence_C[valence<=0.499] <- "more negative"
+})
+head(data1)
+```
+
+Fit multiple linear regression models separately for different genres. 
+
+```{r}
+set.seed(12)
+library(caret)
+library(tidyverse)
+```
+
+```{r}
+pop <- data1[data1$genre=="pop",]
+edm <- data1[data1$genre=="edm",]
+```
+
+```{r}
+names(pop)
+```
+
+```{r}
+training_samples <- pop$popularity %>%
+  createDataPartition(p=0.8, list=FALSE)
+
+train <- pop[training_samples, ]
+test <- pop[-training_samples, ]
+dim(train)
+```
+
+Fit the FULL linear regression model.
+```{r}
+fit1 <- lm(popularity ~ danceability + energy + loudness + speechiness + acousticness + instrumantalness + liveness + valence + tempo +Valence_C, data = train)
+summary(fit1)
+```
+
+Remove insignificant variables.
+
+```{r}
+fit2 <- lm(popularity ~ danceability + energy + loudness + speechiness + instrumantalness + Valence_C, data = train)
+summary(fit2)
+```
+
+Check interactions.
+```{r}
+fit12 <- lm(popularity ~ (danceability+energy+loudness+speechiness+instrumantalness)^2, data=train)
+summary(fit12)
+```
+
+```{r}
+fit3 <- lm(popularity~danceability+energy+loudness+speechiness+instrumantalness+energy*loudness+loudness*instrumantalness,data=train)
+summary(fit3)
+```
+
+
+Make Predictions
+```{r}
+pred1 <- fit1 %>% predict(test)
+p1 = data.frame(
+  RMSE=RMSE(pred1,test$popularity),
+  R2=R2(pred1,test$popularity)
+)
+
+pred2 <- fit2 %>% predict(test)
+p2 <- data.frame(
+  RMSE=RMSE(pred2,test$popularity),
+  R2=R2(pred2,test$popularity)
+)
+
+pred3 <- fit3 %>% predict(test)
+p3 <- data.frame(
+  RMSE=RMSE(pred3,test$popularity),
+  R2=R2(pred3,test$popularity)
+)
+```
+
+```{r}
+summary(fit1)$fstatistic[1]
+```
+
+```{r}
+summary(fit1)$adj.r.squared
+```
+
+```{r}
+summary(fit1)$sigma #RSE
+```
+
+
+```{r}
+all=rbind(p1,p2,p3)
+all=cbind(all,c(summary(fit1)$fstatistic[1],summary(fit2)$fstatistic[1],summary(fit3)$fstatistic[1]))
+all=cbind(all,c(summary(fit1)$adj.r.squared,summary(fit2)$adj.r.squared,summary(fit3)$adj.r.squared))
+all=cbind(all,c(summary(fit1)$sigma,summary(fit2)$sigma,summary(fit3)$sigma))
+
+all=cbind(all,c("fit1","fit2","fit3"))
+colnames(all)[c(3,4,5,6)]<-c("F stat","Adj R 2","RSE","models")
+all
+```
+
+It turns out that fit3 is the best model.
+
+Next we check the predictors for genres "EDM" and compared with "Pop".
+
+```{r}
+training_samples <- edm$popularity %>% 
+  createDataPartition(p=0.8,list = FALSE)
+
+train <- edm[training_samples,]
+test <- edm[-training_samples,]
+dim(train)
+```
+
+```{r}
+names(train)
+```
+
+Fit FULL linear regression model for EDM.
+```{r}
+fit11 <- lm(popularity ~ danceability+energy+loudness+speechiness+acousticness+instrumantalness+liveness+valence+tempo+Valence_C, data = train)
+summary(fit11)
+```
+
+Remove insignificant variables.
+
+```{r}
+fit22 <- lm(popularity ~ energy+loudness+acousticness+instrumantalness+tempo+Valence_C,data=train)
+summary(fit22)
+```
+
+Check interactions.
+
+```{r}
+fit12 <- lm(popularity~(energy+loudness+acousticness+instrumantalness+tempo)^2,data = train)
+summary(fit12)
+```
+
+
+```{r}
+fit33 <- lm(popularity~energy+loudness+acousticness+instrumantalness+tempo+energy*instrumantalness+energy*tempo+loudness*acousticness+loudness*instrumantalness+loudness*tempo+acousticness*tempo,data = train)
+summary(fit33)
+```
+
+Make predictions
+
+```{r}
+pred11 <- fit11 %>% predict(test)
+p11=data.frame(
+  RMSE=RMSE(pred11,test$popularity),
+  R2=R2(pred11,test$popularity)
+)
+
+pred22 <- fit22 %>% predict(test)
+p22=data.frame(
+  RMSE=RMSE(pred22,test$popularity),
+  R2=R2(pred22,test$popularity)
+)
+
+pred33 <- fit33 %>% predict(test)
+p33=data.frame(
+  RMSE=RMSE(pred33,test$popularity),
+  R2=R2(pred33,test$popularity)
+)
+```
+
+```{r}
+all2=rbind(p11,p22,p33)
+all2=cbind(all2,c(summary(fit11)$fstatistic[1],summary(fit22)$fstatistic[1],summary(fit33)$fstatistic[1]))
+all2=cbind(all2,c(summary(fit11)$adj.r.squared,summary(fit22)$adj.r.squared,summary(fit33)$adj.r.squared))
+all2=cbind(all2,c(summary(fit11)$sigma,summary(fit22)$sigma,summary(fit33)$sigma))
+
+all2=cbind(all2,c("fit11","fit22","fit33"))
+colnames(all2)[c(3,4,5,6)] <- c("F stat","Adj R 2","RSE","models")
+all2
+```
+
+
+It turns out that fit33j is the best model.
+
+

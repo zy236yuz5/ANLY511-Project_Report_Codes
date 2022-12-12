@@ -1,0 +1,92 @@
+---
+title: "511 Final project"
+author: "Yilin Yang"
+date: "2022-12-05"
+output: html_document
+---
+
+Load the required dataset
+```{r}
+artists <- read.csv("./Tracks_Artists.csv")
+head(artists)
+```
+```{r}
+summary(artists$album_release_year)
+```
+
+```{r}
+library(ggplot2)
+ggplot(artists, aes(x=album_release_year)) +
+  geom_bar()+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)+
+  ylim(0,5000)+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=30,hjust=1))+
+  labs(title="Count of Songs in Each Year",
+        x ="Year", y = "Counts")
+```
+```{r}
+artists$year_range <- ifelse(artists$album_release_year < 2011, "1999-2010","2011-2022")
+head(artists)
+```
+```{r}
+library(ggplot2)
+ggplot(artists, aes(x=year_range)) +
+  geom_bar()+
+  geom_text(stat='count', aes(label=..count..), vjust=-1)+
+  ylim(0,5000)+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=30,hjust=1))+
+  labs(title="Count of Songs in Each Range of Year",
+        x ="Year", y = "Counts")
+```
+
+## Hypothesis 2:
+Null Hypothesis: I will make null hypothesis as the average Valence of songs in 1999-2010 is higher than songs in 2011-2011. 
+
+Alternative Hypothesis: the average Valence of songs in 1999-2010 is lower than songs in 2011-2011. 
+
+```{r}
+# group the dataset by Yearrange
+Year2010 <- subset(artists, artists$year_range == "1999-2010",select = c("Valence"))
+Year2022 <- subset(artists, artists$year_range == "2011-2022",select = c("Valence") )
+# t.test
+t.test(Year2010,Year2022,alternative = "less")
+```
+
+
+```{r}
+set.seed(1)
+n1 = length(Year2010)
+n2 = length(Year2022)
+N <- 10000
+diff_mean <- numeric(N) 
+
+for (i in 1:N)
+{
+Year2010.sample <- sample(Year2010$Valence, n1, replace = TRUE) 
+Year2022.sample <- sample(Year2022$Valence, n2, replace = TRUE)
+diff_mean[i] <- mean(Year2010.sample) - mean(Year2022.sample)
+}
+
+mean(diff_mean)
+```
+```{r}
+quantile(diff_mean, c(.025, .975))
+```
+
+```{r}
+mydiff = function(mydf){
+  index1 = artists$year_range == "1999-2010"
+  index2 = artists$year_range == "2011-2022"
+  return(mean(artists$Valence[index1]) - mean(artists$Valence[index2]))
+}
+
+mydiff(genre.clean) #actual mean difference from the original sample
+```
+
+```{r}
+hist(diff_mean,breaks=50,main = "Bootstrap distribution of the difference in means",col = 'light pink')
+abline(v = mean(Year2010.sample) - mean(Year2022.sample), col = "red", lty = 2)
+```
+

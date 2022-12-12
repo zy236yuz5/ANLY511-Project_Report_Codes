@@ -1,0 +1,45 @@
+---
+title: "511-FINAL-PROJECT-Hypothesis Test 2"
+author: "HUITING SONG"
+date: "2022-12-12"
+output: html_document
+---
+
+Import the cleaned dataset
+```{r}
+df <- read.csv("spotify_cleaned.csv")
+head(df,5)
+```
+
+From the daily observations, some music genres do dominate the front rank of the listener's music charts, such as pop music. There are many reasons for this phenomenon, such as the fact that these pop music are sung by favorite singers. Hence, with this complex relationship, whether the popularity of music is related to the genre of music itself needs to be studied. In the previous hypothesis test, the relationship between the average populative of rock music and of rap music has been addressed. However, the general relationship between the genres and the popularity cannot be explained by a test between two specific genres of musics.
+
+In the second hypothsis test, whether the popularity is related to the genre will be examinated. Before implementing the test method, categorizing the popularity into three different groups - high,medium,low -  will be helpful in understanding the relationship. Based on the 0 to 100 popularity score rules on spotify, three categories can be presented as: 
+ - High: popularity >= 66
+ - medium: 33 > popularity > 66
+ - low: popularity <= 33
+
+The two-way table is generated to show the frequency of songs in the group of genre and popularity. 
+```{r}
+df$popularity <- as.factor(ifelse(df$popularity>=66, 'High',
+                     ifelse(df$popularity<66 & df$popularity>33, 'Medium','Low')))
+```
+
+```{r}
+library(knitr)
+t1 = table(df$popularity,df$genre)
+kable(t1,align = "lccrr")
+```
+
+In statistics, Chi-square test is commonly used in testing the independence of two variables. If two variables are independent, it means there is no relationship between two factors. Based on the question of whether the popularity is related to the genre, the null hypothesis (H0) can be set as the popularity and the genre is independent, and then correspondingly, the alternative hypothesis (Ha) will be the popularity and the genre is dependent.In this case, the specific hypotheses are:
+
+- H0: There is no relationship between the popularity and the genre of musics.
+- Ha: There is relationship between the popularity and the genre of musics.
+```{r}
+t2 <- chisq.test(t1)
+t2
+```
+```{r}
+chisq.test(t1)$expected
+```
+
+From the output, the p-value is less than the significance level of 5%, which means the rejection of null hypothesis. In this context, rejecting the null hypothesis for the Chi-square test of independence means there is a significant relationship between the popularity and the genre of musics. 

@@ -1,0 +1,49 @@
+---
+title: "Clean"
+author: "Zonghong Yu"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+df <- read.csv("genres_v2.csv",stringsAsFactors=FALSE)
+head(df)
+    
+```
+```{r}
+names(df)
+```
+
+```{r}
+df = subset(df, select = -c(uri, id, track_href, Unnamed..0, duration_ms, analysis_url, title, type) ) 
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+df_dup = df[duplicated(df$song_name), ]
+head(df_dup)
+```
+```{r}
+dup <- df[df$song_name == "Venom",]
+```
+
+```{r}
+df = df[!duplicated(df$song_name), ]
+```
+```{r}
+head(df)
+```
+
+```{r}
+sum(duplicated(df$song_name))
+```

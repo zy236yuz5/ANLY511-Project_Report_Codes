@@ -1,0 +1,141 @@
+---
+title: "Data Gathering"
+author: "Zonghong Yu"
+
+output: rmdformats::robobook
+---
+
+```{r}
+#install.packages("spotifyr")
+```
+
+```{r}
+#install.packages("Rspotify")
+```
+
+```{r, eval=FALSE}
+library(Rspotify)
+library(httr)
+library(tidyverse)
+library(jsonlite)
+library(spotifyr)#spotifyr is an R wrapper for pulling track audio features and other information from Spotify’s Web API in bulk. 
+
+Sys.setenv(SPOTIFY_CLIENT_ID = "f85bcc688edf495297c9f23941bb9fe5")
+Sys.setenv(SPOTIFY_CLIENT_SECRET = "442177d408a64513afcc0efb5807cda2")
+access_token <- get_spotify_access_token()
+
+
+#You can get much more details here
+#https://cran.r-project.org/web/packages/spotidy/vignettes/Connecting-with-the-Spotify-API.html
+
+
+Taylor_Swift <- get_artist_audio_features("Taylor Swift")
+John_Legend <- get_artist_audio_features("John Legend")
+Beyonce <- get_artist_audio_features("Beyonce")
+
+```
+
+```{r}
+Drake <- get_artist_audio_features("Drake")
+Rihanna <- get_artist_audio_features("Rihanna")
+Coldplay <- get_artist_audio_features("Coldplay")
+Eminem <- get_artist_audio_features("Eminem")
+```
+
+```{r}
+Taylor_Swift_A <-data.frame(Taylor_Swift$artist_name,Taylor_Swift$valence,
+                            Taylor_Swift$danceability,Taylor_Swift$energy,Taylor_Swift$loudness,
+                            Taylor_Swift$speechiness,Taylor_Swift$acousticness,Taylor_Swift$liveness,
+                            Taylor_Swift$tempo,Taylor_Swift$track_name, Taylor_Swift$album_name,Taylor_Swift$album_release_year)
+colnames(Taylor_Swift_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+head(Taylor_Swift_A)
+
+
+John_Legend_A <-data.frame(John_Legend$artist_name,John_Legend$valence,
+                            John_Legend$danceability,John_Legend$energy,John_Legend$loudness,
+                            John_Legend$speechiness,John_Legend$acousticness,John_Legend$liveness,
+                            John_Legend$tempo,John_Legend$track_name, John_Legend$album_name,John_Legend$album_release_year)
+
+colnames(John_Legend_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+head(John_Legend_A)
+
+
+Beyonce_A <-data.frame(Beyonce$artist_name,Beyonce$valence,
+                       Beyonce$danceability,Beyonce$energy,Beyonce$loudness,
+                       Beyonce$speechiness,Beyonce$acousticness,Beyonce$liveness,
+                       Beyonce$tempo,Beyonce$track_name, Beyonce$album_name, Beyonce$album_release_year)
+
+colnames(Beyonce_A) <- c("artist_name","Valence","danceability","energy",
+                             "loudness","speechiness","acousticness","liveness",
+                             "tempo","track_name","album_name","album_release_year")
+head(Beyonce_A)
+
+```
+
+```{r}
+
+Drake_A <-data.frame(Drake$artist_name,Drake$valence,
+                            Drake$danceability,Drake$energy,Drake$loudness,
+                            Drake$speechiness,Drake$acousticness,Drake$liveness,
+                            Drake$tempo,Drake$track_name, Drake$album_name,Drake$album_release_year)
+colnames(Drake_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+
+Rihanna_A <-data.frame(Rihanna$artist_name,Rihanna$valence,
+                            Rihanna$danceability,Rihanna$energy,Rihanna$loudness,
+                            Rihanna$speechiness,Rihanna$acousticness,Rihanna$liveness,
+                            Rihanna$tempo,Rihanna$track_name, Rihanna$album_name,Rihanna$album_release_year)
+colnames(Rihanna_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+
+Coldplay_A <-data.frame(Coldplay$artist_name,Coldplay$valence,
+                            Coldplay$danceability,Coldplay$energy,Coldplay$loudness,
+                            Coldplay$speechiness,Coldplay$acousticness,Coldplay$liveness,
+                            Coldplay$tempo,Coldplay$track_name, Coldplay$album_name,Coldplay$album_release_year)
+colnames(Coldplay_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+
+Eminem_A <-data.frame(Eminem$artist_name,Eminem$valence,
+                            Eminem$danceability,Eminem$energy,Eminem$loudness,
+                            Eminem$speechiness,Eminem$acousticness,Eminem$liveness,
+                            Eminem$tempo,Eminem$track_name, Eminem$album_name,Eminem$album_release_year)
+colnames(Eminem_A) <- c("artist_name","Valence","danceability","energy",
+                              "loudness","speechiness","acousticness","liveness",
+                              "tempo","track_name","album_name","album_release_year")
+```
+
+```{r}
+Artists <-rbind(Taylor_Swift_A,John_Legend_A, Beyonce_A,Eminem_A, Coldplay_A, Rihanna_A, Drake_A)
+head(Artists)
+write.csv(Artists, "Tracks_Artists.csv")
+```
+
+```{r}
+df <- read.csv("genres_v2.csv",stringsAsFactors=FALSE)
+head(df)
+    
+```
+
+```{r}
+names(df)
+```
+
+```{r}
+df = subset(df, select = -c(uri, id, track_href, Unnamed..0, duration_ms, analysis_url, title) ) 
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+df = df[!duplicated(df$song_name), ]
+df
+```

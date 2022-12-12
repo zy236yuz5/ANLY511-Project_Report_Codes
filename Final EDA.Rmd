@@ -1,0 +1,189 @@
+---
+title: "511 Final presenation Eda"
+output: rmdformats::robobook
+date: "2022-12-05"
+---
+
+```{r}
+library(tidyverse) #for data cleaning and manipulation
+#library(rccdates) #for converting date variables
+library(wordcloud) #for creating word cloud visualizations
+library(ggplot2) #for data visualizations
+library(tm) #used for text mining 
+library(RColorBrewer) #color schemes for plots
+library(SnowballC) #for text stemming
+library(corrplot) #for correlation matrix visualization
+```
+
+
+```{r}
+spotify <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv')
+```
+
+```{r}
+write.csv(spotify, "spotify.csv")
+```
+
+```{r}
+#removing columns 1,5,6,8,& 9
+spotify <- spotify[,-c(1,5,6,8,9)]
+#separating track_album_release_date
+spotify <- spotify%>%separate(track_album_release_date,c("release_year", "release_month", "release_day"), sep="-")
+
+#deleting release_month and release_day
+spotify <- spotify[,-c(5,6)]
+
+#changing year to a factor
+spotify$release_year <- as.factor(spotify$release_year)
+
+#changing genre to a factor
+spotify$playlist_genre <- as.factor(spotify$playlist_genre)
+
+#changing subgenre to a factor
+spotify$playlist_subgenre <- as.factor(spotify$playlist_subgenre)
+
+#simplifying variable names
+names(spotify) <- c("name", "artist", "popularity", "year", "genre", "subgenre", "danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumantalness", "liveness", "valence", "tempo", "duration")
+```
+```{r}
+
+spotify = na.omit(spotify)
+sum(is.na(spotify))
+write.csv(spotify, "spotify_cleaned.csv")
+```
+```{r}
+spotify %>%
+  select(popularity, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumantalness, liveness, valence, tempo, duration) %>%
+  cor() %>%
+  corrplot(method = 'color', order = 'hclust',  type = 'upper', 
+           diag = TRUE, main = 'Correlation Matrix for Popularity and Audio Features',
+           mar = c(2,2,2,2))
+```
+```{r}
+title2 <- Corpus(VectorSource(spotify$name))
+# Convert the text to lower case
+title2 <- tm_map(title2, content_transformer(tolower))
+# Remove numbers
+title2 <- tm_map(title2, removeNumbers)
+# Remove english common stopwords
+title2 <- tm_map(title2, removeWords, stopwords("english"))
+# Remove punctuations
+title2 <- tm_map(title2, removePunctuation)
+# Remove other data specific stop words
+title2 <- tm_map(title2, removeWords, c("feat","edit", "version", "radio", "remix", "remastered", "mix","like", "original", "remaster"))
+title2_dtm <- DocumentTermMatrix(title2)
+title2_freq <- colSums(as.matrix(title2_dtm))
+freq2 <- sort(colSums(as.matrix(title2_dtm)), decreasing=TRUE) 
+title2_wf <- data.frame(word=names(title2_freq), freq=title2_freq)
+
+#create word cloud
+set.seed(1234)
+wordcloud(words = title2_wf$word, freq = title2_wf$freq, min.freq =1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(8, "Dark2"))
+```
+```{r}
+ggplot(data = spotify, aes(x = subgenre, fill = genre)) +
+  geom_bar()+
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+spotify %>% group_by(subgenre) %>% 
+  summarize(average_popularity=mean(popularity)) %>% 
+  ggplot(aes(x=reorder(subgenre,-average_popularity), y=average_popularity))+
+  geom_col(fill = "#F4EDCA", color = "#C4961A")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Average Song Popularity by Subgenre")+
+  labs(y="Average Song Popularity", x = "Subgenre")
+```
+```{r}
+spotify %>% group_by(genre) %>% 
+  summarize(average_popularity=mean(popularity)) %>% 
+  ggplot(aes(x=reorder(genre,-average_popularity), y=average_popularity))+
+  geom_col(fill = "#FFDB6D", color = "#C4961A")+
+  theme(axis.text.x = element_text(angle = 45))+
+  ggtitle("Average Song Popularity by Genre")+
+  labs(y="Average Song Popularity", x = "Genre")
+```
+
+```{r}
+# Compute the analysis of variance
+res.aov <- aov(popularity ~ genre, data = spotify)
+# Tukey's multiple comparison of means
+TukeyHSD(res.aov)
+```
+
+
+```{r}
+spotify$popular_level<-rep(0, nrow(spotify))
+
+spotify <- within(spotify, {   
+  
+  popular_level[popularity>=66] <- "very_popular"
+  popular_level[popularity>=33 & popularity< 66] <- "Moderate"
+  popular_level[popularity <= 33] <- "not_popular"
+} )
+```
+
+
+```{r}
+popular_table <- spotify %>% 
+  group_by(artist) %>% 
+  
+  summarize(total_popular=sum(popular_level == "very_popular"),
+            total_not_popular=sum(popular_level == "not_popular"),
+            moderate = sum(popular_level == "Moderate"),
+            popularity_ratio=ifelse(
+              total_not_popular>0,total_popular/total_not_popular,total_popular)) %>%
+  
+  top_n(10,total_popular) %>% 
+  select(artist, total_popular,moderate,total_not_popular, popularity_ratio) %>% 
+  arrange(desc(total_popular))
+  
+popular_table
+knitr::kable(popular_table, align = "lccc", format="markdown",col.names = c('Artist', 'Popular','Moderate', ' Not popular', 'popularity ratio'), caption="Top 10 Artists by Number of Popular Songs")
+```
+
+
+```{r}
+ggplot(popular_table,
+       aes(x=reorder(artist, -total_popular), y=total_popular)) + geom_bar(stat = "identity",fill = "#56B4E9", color = "#0072B2")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Top 10 arists with most popular songs")+
+  labs(y="Number of Popular songs", x = "Arists")
+```
+```{r}
+ratio_table <- spotify %>% 
+  group_by(artist) %>% 
+  
+  summarize(total_popular=sum(popular_level == "very_popular"),
+            total_not_popular=sum(popular_level == "not_popular"),
+            moderate = sum(popular_level == "Moderate"),
+            popularity_ratio=ifelse(
+              total_not_popular>0,total_popular/total_not_popular,total_popular)) %>%
+  
+  top_n(10,popularity_ratio) %>% 
+  select(artist, total_popular,moderate,total_not_popular, popularity_ratio) %>% 
+  arrange(desc(popularity_ratio))
+  
+
+knitr::kable(ratio_table, align = "lccc", format="markdown",col.names = c('Artist', 'Popular','Moderate', ' Not popular', 'Popular ratio'), caption="Top 10 Artists by Popular Ratio")
+```
+
+```{r}
+ggplot(ratio_table,
+       aes(x=reorder(artist, -popularity_ratio), y=popularity_ratio)) + geom_bar(stat = "identity",fill = "#56B4E9", color = "#0072B2")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ggtitle("Top 10 arists with highest popular ratio")+
+  labs(y="Number of Popular songs", x = "Arists")
+```
+
+```{r}
+# parse out the keywords from the pipe-delimited string and determine keyword frequency
+parse_key <- data.frame(table(unlist(strsplit(as.character(spotify$artist), split = "|",
+                                              fixed = TRUE))))
+# list the 20 most frequent keywords
+head(parse_key[order(parse_key$Freq, decreasing = TRUE), ], 10)
+```
+
